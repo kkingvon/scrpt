@@ -1,0 +1,237 @@
+-- ADMIN GUI - LocalScript v2.0 FIXED
+-- Place dans StarterPlayerScripts | Touche INSERT pour ouvrir
+
+local ok, err = pcall(function()
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Lighting = game:GetService("Lighting")
+local TweenService = game:GetService("TweenService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+local function saveConfig(k,v) pcall(function() LocalPlayer:SetAttribute("CFG_"..k, tostring(v)) end) end
+local function loadConfig(k,d) local ok2,v=pcall(function() local a=LocalPlayer:GetAttribute("CFG_"..k) if a==nil then return d end if a=="true" then return true end if a=="false" then return false end local n=tonumber(a) return n~=nil and n or a end) return ok2 and v or d end
+
+local States = {
+    Fly=loadConfig("Fly",false), Noclip=loadConfig("Noclip",false),
+    InfiniteJump=loadConfig("InfiniteJump",false), AirWalk=loadConfig("AirWalk",false),
+    AntiFall=loadConfig("AntiFall",false), ESP=loadConfig("ESP",false),
+    Tracer=loadConfig("Tracer",false), Fullbright=loadConfig("Fullbright",false),
+    GodMode=loadConfig("GodMode",false), AntiKnockback=loadConfig("AntiKnockback",false),
+    AutoDodge=loadConfig("AutoDodge",false), FreezeAll=loadConfig("FreezeAll",false),
+    SpinBot=loadConfig("SpinBot",false), KillAura=loadConfig("KillAura",false),
+    AutoSlap=loadConfig("AutoSlap",false), HitboxExpander=loadConfig("HitboxExpander",false),
+    OneHitKill=loadConfig("OneHitKill",false), TriggerBot=loadConfig("TriggerBot",false),
+}
+local FlySpeed=loadConfig("FlySpeed",50)
+local WalkSpeed=loadConfig("WalkSpeed",16)
+local Reach=loadConfig("Reach",12)
+
+-- GUI
+local ScreenGui=Instance.new("ScreenGui") ScreenGui.Name="AdminPanel" ScreenGui.ResetOnSpawn=false ScreenGui.ZIndexBehavior=Enum.ZIndexBehavior.Sibling ScreenGui.Parent=LocalPlayer:WaitForChild("PlayerGui")
+local MainFrame=Instance.new("Frame") MainFrame.Size=UDim2.new(0,560,0,590) MainFrame.Position=UDim2.new(0.5,-280,0.5,-295) MainFrame.BackgroundColor3=Color3.fromRGB(12,12,18) MainFrame.BorderSizePixel=0 MainFrame.ClipsDescendants=true MainFrame.Parent=ScreenGui Instance.new("UICorner",MainFrame).CornerRadius=UDim.new(0,14)
+local TitleBar=Instance.new("Frame") TitleBar.Size=UDim2.new(1,0,0,48) TitleBar.BackgroundColor3=Color3.fromRGB(22,22,32) TitleBar.BorderSizePixel=0 TitleBar.Parent=MainFrame Instance.new("UICorner",TitleBar).CornerRadius=UDim.new(0,14)
+local TitleLabel=Instance.new("TextLabel") TitleLabel.Size=UDim2.new(1,-70,1,0) TitleLabel.Position=UDim2.new(0,16,0,0) TitleLabel.BackgroundTransparency=1 TitleLabel.Text="⚡  Admin Panel  v2.0" TitleLabel.TextColor3=Color3.white TitleLabel.TextSize=17 TitleLabel.Font=Enum.Font.GothamBold TitleLabel.TextXAlignment=Enum.TextXAlignment.Left TitleLabel.Parent=TitleBar
+local CloseBtn=Instance.new("TextButton") CloseBtn.Size=UDim2.new(0,28,0,28) CloseBtn.Position=UDim2.new(1,-42,0.5,-14) CloseBtn.BackgroundColor3=Color3.fromRGB(200,50,50) CloseBtn.Text="✕" CloseBtn.TextColor3=Color3.white CloseBtn.TextSize=13 CloseBtn.Font=Enum.Font.GothamBold CloseBtn.BorderSizePixel=0 CloseBtn.Parent=TitleBar Instance.new("UICorner",CloseBtn).CornerRadius=UDim.new(1,0)
+CloseBtn.MouseButton1Click:Connect(function() MainFrame.Visible=false end)
+local TabBar=Instance.new("Frame") TabBar.Size=UDim2.new(1,-16,0,34) TabBar.Position=UDim2.new(0,8,0,54) TabBar.BackgroundTransparency=1 TabBar.Parent=MainFrame
+local TabLayout=Instance.new("UIListLayout") TabLayout.FillDirection=Enum.FillDirection.Horizontal TabLayout.Padding=UDim.new(0,4) TabLayout.Parent=TabBar
+local ContentArea=Instance.new("Frame") ContentArea.Size=UDim2.new(1,-16,1,-100) ContentArea.Position=UDim2.new(0,8,0,96) ContentArea.BackgroundTransparency=1 ContentArea.Parent=MainFrame
+
+local Pages={}
+
+local function createTab(name,icon)
+    local btn=Instance.new("TextButton") btn.Size=UDim2.new(0,58,1,0) btn.BackgroundColor3=Color3.fromRGB(28,28,38) btn.Text=icon.."\n"..name btn.TextColor3=Color3.fromRGB(160,160,175) btn.TextSize=10 btn.Font=Enum.Font.GothamBold btn.BorderSizePixel=0 btn.Parent=TabBar Instance.new("UICorner",btn).CornerRadius=UDim.new(0,7)
+    local page=Instance.new("ScrollingFrame") page.Size=UDim2.new(1,0,1,0) page.BackgroundTransparency=1 page.ScrollBarThickness=3 page.ScrollBarImageColor3=Color3.fromRGB(90,90,220) page.CanvasSize=UDim2.new(0,0,0,0) page.Visible=false page.Parent=ContentArea
+    local layout=Instance.new("UIListLayout") layout.Padding=UDim.new(0,6) layout.Parent=page
+    -- FIX: met à jour la taille du canvas automatiquement
+    layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        page.CanvasSize=UDim2.new(0,0,0,layout.AbsoluteContentSize.Y+12)
+    end)
+    Pages[name]={btn=btn,page=page}
+    return page
+end
+
+local function switchTab(name)
+    for n,data in pairs(Pages) do data.page.Visible=false data.btn.BackgroundColor3=Color3.fromRGB(28,28,38) data.btn.TextColor3=Color3.fromRGB(160,160,175) end
+    Pages[name].page.Visible=true Pages[name].btn.BackgroundColor3=Color3.fromRGB(70,70,200) Pages[name].btn.TextColor3=Color3.white
+end
+
+local function createSection(parent,text)
+    local f=Instance.new("Frame") f.Size=UDim2.new(1,0,0,24) f.BackgroundColor3=Color3.fromRGB(30,30,50) f.BorderSizePixel=0 f.Parent=parent Instance.new("UICorner",f).CornerRadius=UDim.new(0,6)
+    local lbl=Instance.new("TextLabel") lbl.Size=UDim2.new(1,-10,1,0) lbl.Position=UDim2.new(0,10,0,0) lbl.BackgroundTransparency=1 lbl.Text="▸  "..text lbl.TextColor3=Color3.fromRGB(130,130,220) lbl.TextSize=11 lbl.Font=Enum.Font.GothamBold lbl.TextXAlignment=Enum.TextXAlignment.Left lbl.Parent=f
+end
+
+local function createToggle(parent,label,stateKey,callback)
+    local frame=Instance.new("Frame") frame.Size=UDim2.new(1,0,0,42) frame.BackgroundColor3=Color3.fromRGB(20,20,30) frame.BorderSizePixel=0 frame.Parent=parent Instance.new("UICorner",frame).CornerRadius=UDim.new(0,9)
+    local lbl=Instance.new("TextLabel") lbl.Size=UDim2.new(0.72,0,1,0) lbl.Position=UDim2.new(0,14,0,0) lbl.BackgroundTransparency=1 lbl.Text=label lbl.TextColor3=Color3.fromRGB(215,215,225) lbl.TextSize=13 lbl.Font=Enum.Font.Gotham lbl.TextXAlignment=Enum.TextXAlignment.Left lbl.Parent=frame
+    local on0=stateKey and States[stateKey] or false
+    local tb=Instance.new("TextButton") tb.Size=UDim2.new(0,52,0,26) tb.Position=UDim2.new(1,-66,0.5,-13) tb.BackgroundColor3=on0 and Color3.fromRGB(45,195,95) or Color3.fromRGB(55,55,68) tb.Text=on0 and "ON" or "OFF" tb.TextColor3=on0 and Color3.white or Color3.fromRGB(160,160,170) tb.TextSize=11 tb.Font=Enum.Font.GothamBold tb.BorderSizePixel=0 tb.Parent=frame Instance.new("UICorner",tb).CornerRadius=UDim.new(1,0)
+    tb.MouseButton1Click:Connect(function()
+        if stateKey then States[stateKey]=not States[stateKey] local on=States[stateKey] saveConfig(stateKey,on) TweenService:Create(tb,TweenInfo.new(0.15),{BackgroundColor3=on and Color3.fromRGB(45,195,95) or Color3.fromRGB(55,55,68),TextColor3=on and Color3.white or Color3.fromRGB(160,160,170)}):Play() tb.Text=on and "ON" or "OFF" if callback then pcall(callback,on) end end
+    end)
+end
+
+local function createSlider(parent,label,mn,mx,def,callback)
+    local frame=Instance.new("Frame") frame.Size=UDim2.new(1,0,0,58) frame.BackgroundColor3=Color3.fromRGB(20,20,30) frame.BorderSizePixel=0 frame.Parent=parent Instance.new("UICorner",frame).CornerRadius=UDim.new(0,9)
+    local vl=Instance.new("TextLabel") vl.Size=UDim2.new(1,-14,0,22) vl.Position=UDim2.new(0,14,0,6) vl.BackgroundTransparency=1 vl.Text=label..":  "..def vl.TextColor3=Color3.fromRGB(215,215,225) vl.TextSize=13 vl.Font=Enum.Font.Gotham vl.TextXAlignment=Enum.TextXAlignment.Left vl.Parent=frame
+    local track=Instance.new("Frame") track.Size=UDim2.new(1,-28,0,7) track.Position=UDim2.new(0,14,0,38) track.BackgroundColor3=Color3.fromRGB(45,45,60) track.BorderSizePixel=0 track.Parent=frame Instance.new("UICorner",track).CornerRadius=UDim.new(0,4)
+    local fill=Instance.new("Frame") fill.Size=UDim2.new((def-mn)/(mx-mn),0,1,0) fill.BackgroundColor3=Color3.fromRGB(75,75,210) fill.BorderSizePixel=0 fill.Parent=track Instance.new("UICorner",fill).CornerRadius=UDim.new(0,4)
+    local drag=false
+    track.InputBegan:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 then drag=true end end)
+    UserInputService.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 then drag=false end end)
+    UserInputService.InputChanged:Connect(function(i)
+        if drag and i.UserInputType==Enum.UserInputType.MouseMovement then local rel=math.clamp((i.Position.X-track.AbsolutePosition.X)/track.AbsoluteSize.X,0,1) local val=math.floor(mn+rel*(mx-mn)) fill.Size=UDim2.new(rel,0,1,0) vl.Text=label..":  "..val if callback then pcall(callback,val) end end
+    end)
+end
+
+local function createButton(parent,label,color,callback)
+    local c=color or Color3.fromRGB(70,70,200)
+    local btn=Instance.new("TextButton") btn.Size=UDim2.new(1,0,0,38) btn.BackgroundColor3=c btn.Text=label btn.TextColor3=Color3.white btn.TextSize=13 btn.Font=Enum.Font.GothamBold btn.BorderSizePixel=0 btn.Parent=parent Instance.new("UICorner",btn).CornerRadius=UDim.new(0,9)
+    btn.MouseButton1Click:Connect(function()
+        TweenService:Create(btn,TweenInfo.new(0.1),{BackgroundColor3=Color3.fromRGB(math.min(c.R*255+40,255),math.min(c.G*255+40,255),math.min(c.B*255+40,255))}):Play()
+        task.delay(0.15,function() TweenService:Create(btn,TweenInfo.new(0.1),{BackgroundColor3=c}):Play() end)
+        if callback then pcall(callback) end
+    end)
+    return btn
+end
+
+-- ONGLETS
+local MovePage=createTab("Move","✈️") local VisionPage=createTab("Vision","👁") local DefPage=createTab("Def","🛡") local FunPage=createTab("Fun","🧠") local CombatPage=createTab("Combat","💥") local BringPage=createTab("Bring","🎯") local SonsPage=createTab("Sons","🔊")
+for name,data in pairs(Pages) do data.btn.MouseButton1Click:Connect(function() switchTab(name) end) end
+
+-- MOVE
+createSection(MovePage,"VOL")
+createToggle(MovePage,"✈️  Fly","Fly")
+createSlider(MovePage,"✈️  Fly Speed",10,150,FlySpeed,function(v) FlySpeed=v saveConfig("FlySpeed",v) end)
+createSection(MovePage,"VITESSE")
+createSlider(MovePage,"⚡  Walk Speed",5,120,WalkSpeed,function(v) WalkSpeed=v saveConfig("WalkSpeed",v) pcall(function() local c=LocalPlayer.Character if c then local h=c:FindFirstChildOfClass("Humanoid") if h then h.WalkSpeed=v end end end) end)
+createToggle(MovePage,"🦘  Infinite Jump","InfiniteJump")
+createSection(MovePage,"COLLISION")
+createToggle(MovePage,"👻  Noclip","Noclip")
+createToggle(MovePage,"🌬️  Air Walk","AirWalk")
+createToggle(MovePage,"🛸  Anti Fall","AntiFall")
+createSection(MovePage,"TÉLÉPORT")
+createButton(MovePage,"🇧🇷  TP to Brazil",Color3.fromRGB(0,120,50),function() pcall(function() local c=LocalPlayer.Character if c then local h=c:FindFirstChild("HumanoidRootPart") if h then h.CFrame=CFrame.new(0,-10000,0) end end end) end)
+for _,p in ipairs(Players:GetPlayers()) do if p~=LocalPlayer then createButton(MovePage,"TP → "..p.Name,Color3.fromRGB(40,110,190),function() pcall(function() local c=LocalPlayer.Character if c and p.Character then local h=c:FindFirstChild("HumanoidRootPart") local t=p.Character:FindFirstChild("HumanoidRootPart") if h and t then h.CFrame=t.CFrame+Vector3.new(0,4,0) end end end) end) end end
+
+-- VISION
+createSection(VisionPage,"ESP")
+createToggle(VisionPage,"🔴  Player ESP","ESP")
+createToggle(VisionPage,"📛  Name ESP","ESP")
+createToggle(VisionPage,"🎯  Tracer","Tracer")
+createSection(VisionPage,"ÉCLAIRAGE")
+createToggle(VisionPage,"☀️  Fullbright","Fullbright",function(s) pcall(function() if s then Lighting.Ambient=Color3.fromRGB(255,255,255) Lighting.OutdoorAmbient=Color3.fromRGB(255,255,255) Lighting.Brightness=8 Lighting.FogEnd=999999 else Lighting.Ambient=Color3.fromRGB(70,70,70) Lighting.OutdoorAmbient=Color3.fromRGB(127,127,127) Lighting.Brightness=1 Lighting.FogEnd=100000 end end) end)
+
+-- DEFENSE
+createSection(DefPage,"VIE")
+createToggle(DefPage,"💛  God Mode","GodMode")
+createToggle(DefPage,"🦺  Invincibility","GodMode")
+createSection(DefPage,"ANTIS")
+createToggle(DefPage,"🏃  Anti Knockback","AntiKnockback")
+createToggle(DefPage,"🔄  Auto Dodge","AutoDodge")
+createToggle(DefPage,"🛸  Anti Fall","AntiFall")
+
+-- FUN
+createSection(FunPage,"TROLL JOUEURS")
+createToggle(FunPage,"🧊  Freeze All","FreezeAll",function(s) pcall(function() for _,p in ipairs(Players:GetPlayers()) do if p~=LocalPlayer and p.Character then local h=p.Character:FindFirstChild("HumanoidRootPart") if h then h.Anchored=s end end end end) end)
+createToggle(FunPage,"🌀  Spin Bot","SpinBot")
+createButton(FunPage,"💥  Clone Spam (5 clones)",Color3.fromRGB(130,40,180),function() pcall(function() local c=LocalPlayer.Character if not c or not c.PrimaryPart then return end for i=1,5 do local cl=c:Clone() cl.Name="AdminClone" cl.Parent=workspace cl:SetPrimaryPartCFrame(c.PrimaryPart.CFrame*CFrame.new(math.random(-8,8),0,math.random(-8,8))) game:GetService("Debris"):AddItem(cl,5) end end) end)
+createSection(FunPage,"EVENTS HORREUR")
+createButton(FunPage,"🌑  Nuit Sombre",Color3.fromRGB(25,25,45),function() pcall(function() TweenService:Create(Lighting,TweenInfo.new(3),{Ambient=Color3.fromRGB(0,0,0),OutdoorAmbient=Color3.fromRGB(0,0,0),Brightness=0,FogColor=Color3.fromRGB(0,0,0),FogEnd=30,FogStart=0}):Play() end) end)
+createButton(FunPage,"☀️  Remettre lumière",Color3.fromRGB(180,130,30),function() pcall(function() TweenService:Create(Lighting,TweenInfo.new(3),{Ambient=Color3.fromRGB(70,70,70),OutdoorAmbient=Color3.fromRGB(127,127,127),Brightness=1,FogColor=Color3.fromRGB(190,190,200),FogEnd=100000,FogStart=0}):Play() end) end)
+createButton(FunPage,"💡  Lumières Clignotantes",Color3.fromRGB(60,60,80),function() pcall(function() task.spawn(function() for i=1,14 do Lighting.Brightness=(i%2==0) and 0 or 1 task.wait(0.18) end Lighting.Brightness=1 end) end) end)
+createButton(FunPage,"🔴  Ambiance Rouge Sang",Color3.fromRGB(140,20,20),function() pcall(function() TweenService:Create(Lighting,TweenInfo.new(2),{Ambient=Color3.fromRGB(80,0,0),OutdoorAmbient=Color3.fromRGB(60,0,0),FogColor=Color3.fromRGB(80,0,0),FogEnd=60}):Play() end) end)
+createButton(FunPage,"🌫️  Brouillard Dense",Color3.fromRGB(50,50,60),function() pcall(function() TweenService:Create(Lighting,TweenInfo.new(3),{FogColor=Color3.fromRGB(30,30,30),FogEnd=20,FogStart=0,Brightness=0.2}):Play() end) end)
+
+-- COMBAT
+createSection(CombatPage,"AURA / SLAP")
+createToggle(CombatPage,"⚔️  Kill Aura","KillAura")
+createToggle(CombatPage,"👋  Auto Slap","AutoSlap")
+createToggle(CombatPage,"🎯  Trigger Bot","TriggerBot")
+createSection(CombatPage,"PORTÉE")
+createSlider(CombatPage,"📏  Reach",5,60,Reach,function(v) Reach=v saveConfig("Reach",v) end)
+createToggle(CombatPage,"📦  Hitbox Expander","HitboxExpander")
+createSection(CombatPage,"DÉGÂTS")
+createToggle(CombatPage,"☠️  One Hit Kill","OneHitKill")
+
+-- BRING
+createSection(BringPage,"BRING UN JOUEUR VERS TOI")
+local function refreshBring()
+    pcall(function()
+        for _,c in ipairs(BringPage:GetChildren()) do if c:IsA("TextButton") then c:Destroy() end end
+        for _,p in ipairs(Players:GetPlayers()) do if p~=LocalPlayer then createButton(BringPage,"🎯  Bring  "..p.Name,Color3.fromRGB(40,150,75),function() pcall(function() if p.Character and LocalPlayer.Character then local t=p.Character:FindFirstChild("HumanoidRootPart") local m=LocalPlayer.Character:FindFirstChild("HumanoidRootPart") if t and m then t.CFrame=m.CFrame+Vector3.new(3,0,0) end end end) end) end end
+    end)
+end
+refreshBring() Players.PlayerAdded:Connect(refreshBring) Players.PlayerRemoving:Connect(function() task.wait(0.1) refreshBring() end)
+
+-- SONS
+local Sounds={
+    {name="😭  OOF classique",id=131070686},{name="💥  Vine Boom",id=5153845158},
+    {name="😤  Bruh",id=5869232803},{name="📯  MLG Air Horn",id=142373936},
+    {name="🐸  Quoi Feur",id=4612818536},{name="😂  Rire bizarre",id=291843473},
+    {name="👶  Bébé qui pleure",id=306204778},{name="🗣️  Homme qui crie",id=1049040718},
+    {name="💨  Bruit bizarre",id=1449430702},{name="👻  Jumpscare son",id=2865227271},
+    {name="😱  Cri d'horreur",id=1699290293},{name="🎵  Boite à musique",id=1837357509},
+    {name="🌑  Ambiance horreur",id=1843719375},{name="🔪  Couteau glisse",id=175067306},
+    {name="💀  Son dramatique",id=138076523},
+}
+local currentSound=nil
+local function playSound(id) pcall(function() if currentSound then currentSound:Stop() currentSound:Destroy() currentSound=nil end local s=Instance.new("Sound") s.SoundId="rbxassetid://"..id s.Volume=1 s.Parent=workspace s:Play() currentSound=s end) end
+createSection(SonsPage,"SONS FUN / MEME")
+for i=1,9 do createButton(SonsPage,Sounds[i].name,Color3.fromRGB(50,80,170),function() playSound(Sounds[i].id) end) end
+createSection(SonsPage,"SONS HORREUR")
+for i=10,#Sounds do createButton(SonsPage,Sounds[i].name,Color3.fromRGB(100,20,20),function() playSound(Sounds[i].id) end) end
+createSection(SonsPage,"CONTRÔLE")
+createButton(SonsPage,"⏹️  Stop le son",Color3.fromRGB(60,60,60),function() pcall(function() if currentSound then currentSound:Stop() currentSound:Destroy() currentSound=nil end end) end)
+createSlider(SonsPage,"🔊  Volume",0,10,10,function(v) pcall(function() if currentSound then currentSound.Volume=v/10 end end) end)
+
+-- GAME LOOP
+RunService.Heartbeat:Connect(function()
+    pcall(function()
+        local char=LocalPlayer.Character if not char then return end
+        local hrp=char:FindFirstChild("HumanoidRootPart") local hum=char:FindFirstChildOfClass("Humanoid")
+        if States.Fly and hrp then
+            local dir=Vector3.new(0,0,0)
+            if UserInputService:IsKeyDown(Enum.KeyCode.W) then dir=dir+Camera.CFrame.LookVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.S) then dir=dir-Camera.CFrame.LookVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.A) then dir=dir-Camera.CFrame.RightVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.D) then dir=dir+Camera.CFrame.RightVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.Space) then dir=dir+Vector3.new(0,1,0) end
+            if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then dir=dir-Vector3.new(0,1,0) end
+            hrp.Velocity=dir.Magnitude>0 and dir.Unit*FlySpeed or Vector3.new(0,0,0)
+            if hum then hum.PlatformStand=true end
+        elseif hum then hum.PlatformStand=false end
+        if States.Noclip then for _,p in ipairs(char:GetDescendants()) do if p:IsA("BasePart") then p.CanCollide=false end end end
+        if States.GodMode and hum then hum.MaxHealth=math.huge hum.Health=math.huge end
+        if States.AntiKnockback and hrp then hrp.Velocity=Vector3.new(hrp.Velocity.X*0.05,hrp.Velocity.Y,hrp.Velocity.Z*0.05) end
+        if States.AntiFall and hrp and hrp.Position.Y<-100 then local sp=workspace:FindFirstChild("SpawnLocation") hrp.CFrame=sp and sp.CFrame+Vector3.new(0,5,0) or CFrame.new(0,10,0) end
+        if States.SpinBot and hrp then hrp.CFrame=hrp.CFrame*CFrame.Angles(0,math.rad(9),0) end
+        if States.HitboxExpander and hrp then hrp.Size=Vector3.new(9,9,9) elseif hrp and hrp.Size.X>2.1 then hrp.Size=Vector3.new(2,2,1) end
+        if (States.KillAura or States.AutoSlap or States.TriggerBot) and hrp then
+            for _,p in ipairs(Players:GetPlayers()) do if p~=LocalPlayer and p.Character then local eh=p.Character:FindFirstChild("HumanoidRootPart") local em=p.Character:FindFirstChildOfClass("Humanoid") if eh and em and (hrp.Position-eh.Position).Magnitude<=Reach then if States.OneHitKill then em.Health=0 else em:TakeDamage(8) end end end end
+        end
+        if States.ESP then
+            for _,p in ipairs(Players:GetPlayers()) do if p~=LocalPlayer and p.Character and not p.Character:FindFirstChild("_AdminESP") then local h=Instance.new("Highlight") h.Name="_AdminESP" h.FillColor=Color3.fromRGB(255,30,30) h.OutlineColor=Color3.white h.FillTransparency=0.45 h.Parent=p.Character end end
+        else for _,p in ipairs(Players:GetPlayers()) do if p.Character then local h=p.Character:FindFirstChild("_AdminESP") if h then h:Destroy() end end end end
+        if States.Tracer then
+            for _,p in ipairs(Players:GetPlayers()) do if p~=LocalPlayer and p.Character then local eh=p.Character:FindFirstChild("HumanoidRootPart") if eh and hrp then local line=workspace:FindFirstChild("_Tracer_"..p.Name) if not line then line=Instance.new("Part") line.Name="_Tracer_"..p.Name line.Anchored=true line.CanCollide=false line.CastShadow=false line.Material=Enum.Material.Neon line.Color=Color3.fromRGB(255,50,50) line.Parent=workspace end local d=(eh.Position-hrp.Position).Magnitude line.Size=Vector3.new(0.05,0.05,d) line.CFrame=CFrame.new(hrp.Position,eh.Position)*CFrame.new(0,0,-d/2) end end end
+        else for _,o in ipairs(workspace:GetChildren()) do if o.Name:sub(1,8)=="_Tracer_" then o:Destroy() end end end
+    end)
+end)
+
+UserInputService.JumpRequest:Connect(function() pcall(function() if States.InfiniteJump then local c=LocalPlayer.Character if c then local h=c:FindFirstChildOfClass("Humanoid") if h then h:ChangeState(Enum.HumanoidStateType.Jumping) end end end end) end)
+
+local drag,ds,sp2
+TitleBar.InputBegan:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 then drag=true ds=i.Position sp2=MainFrame.Position end end)
+TitleBar.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 then drag=false end end)
+UserInputService.InputChanged:Connect(function(i) if drag and i.UserInputType==Enum.UserInputType.MouseMovement then local d=i.Position-ds MainFrame.Position=UDim2.new(sp2.X.Scale,sp2.X.Offset+d.X,sp2.Y.Scale,sp2.Y.Offset+d.Y) end end)
+UserInputService.InputBegan:Connect(function(i,g) if not g and i.KeyCode==Enum.KeyCode.Insert then MainFrame.Visible=not MainFrame.Visible end end)
+
+switchTab("Move")
+print("✅ Admin GUI v2.0 OK - "..LocalPlayer.Name)
+
+end)
+if not ok then warn("❌ Erreur GUI: "..tostring(err)) end
